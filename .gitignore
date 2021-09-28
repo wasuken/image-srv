@@ -1,0 +1,5 @@
+config.json
+vendor/
+node_modules
+public/*
+!public/style.css
