@@ -13,7 +13,7 @@ export default [
       svelte({
 		include: "src/**/*.svelte",
       }),
-      resolve({browser: true}),
+      resolve({browser: true,dedupe: ['svelte'],}),
 	],
   },
   {
@@ -27,7 +27,7 @@ export default [
       svelte({
 		include: "src/**/*.svelte",
       }),
-      resolve({browser: true}),
+      resolve({browser: true,dedupe: ['svelte'],}),
 	],
   }
 ];

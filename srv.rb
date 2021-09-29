@@ -8,6 +8,8 @@ require 'digest'
 require 'open-uri'
 require 'date'
 require 'net/http'
+require 'nokogiri'
+require 'base64'
 
 require 'benchmark'
 
@@ -48,6 +50,16 @@ get '/post' do
   erb :post
 end
 
+get '/api/v1/img/in/page' do
+  url = params['url']
+
+  doc = Nokogiri::HTML(URI.open(url))
+  imgs = []
+  doc.css('img').each do |img|
+    imgs << img.attr('src')
+  end
+  imgs.uniq.to_json
+end
 
 get '/api/v1/images/top' do
   img_url_path = CONFIG['app']['img_url_path']

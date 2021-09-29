@@ -1,5 +1,6 @@
 <script>
   import {inputImageUrls} from "../store.js";
+  import ImageInput from "./ImageInput.svelte";
   export let readonly = true;
   let urlInput = "";
   function add() {
@@ -17,30 +18,27 @@
   }
 </script>
 
-<div class="mb-3">
-  <div class="container-fluid">
-    {#each $inputImageUrls as url}
-      <div class="row">
-        <div class="col-4">
-          <div>
-            {url}
-          </div>
-          <div>
-            <img src={url} height="300px" />
-          </div>
-          <div>
-            <button class="btn btn-secondary" on:click={() => del(url)}>
-              削除
-            </button>
-          </div>
-        </div>
+<div>
+  <h3>画像一覧</h3>
+  <div class="imagearea">
+    {#if !readonly}
+      <div class="mb-3">
+        <input type="url" bind:value={urlInput} />
+        <button class="btn btn-primary" on:click={add}> 追加 </button>
       </div>
+      <div class="m-3">
+        <ImageInput />
+      </div>
+    {/if}
+    {#each $inputImageUrls as url}
+      <figure class="m-3">
+        <img alt="" src={url} height="200" />
+        <figcaption>
+          <button class="btn btn-secondary" on:click={() => del(url)}>
+            削除
+          </button>
+        </figcaption>
+      </figure>
     {/each}
   </div>
-  {#if !readonly}
-    <div class="mb-3">
-      <input type="url" bind:value={urlInput} />
-      <button class="btn btn-primary" on:click={add}> 追加 </button>
-    </div>
-  {/if}
 </div>

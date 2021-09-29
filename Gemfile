@@ -12,3 +12,4 @@ gem 'puma'
 
 gem 'mysql2'
 gem 'sequel'
+gem 'nokogiri'
