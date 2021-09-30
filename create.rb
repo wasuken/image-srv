@@ -1,3 +1,4 @@
+# coding: utf-8
 require 'sequel'
 require 'json'
 
@@ -13,6 +14,11 @@ DB = Sequel.mysql2(
 
 DB.create_table :images do
   String :url_hash
+  String :ext
+  Integer :bytesize
+  Integer :width
+  Integer :height
+  String :source_url
   DateTime :created_at
   primary_key [:url_hash]
 end
