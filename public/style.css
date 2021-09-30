@@ -15,21 +15,24 @@ h3:after {
   width: 20%;
 }
 figure {
-    display: inline-block;   /* インラインブロック化 */
-    margin: 0px 3px 7px 0px; /* 外側に余白を追加(※右に3px・下に7px) */
-    background-color: #ccc;  /* 背景色 */
+    display: inline-block;
+    margin: 0px 3px 7px 0px;
+    background-color: #ccc;
 	padding: 3px;
 }
 figure img {
-    display: block;          /* 余計な余白が出ないようにする */
-    margin: 0px 0px 3px 0px; /* 下側にだけ3pxの余白を追加 */
+    display: block;
+    margin: 0px 0px 3px 0px;
 }
 figcaption {
-    font-size: 0.9em;        /* 文字サイズを90%に */
-    text-align: center;      /* 中身をセンタリング */
+    font-size: 0.9em;
+    text-align: left;
 }
 div.imagearea:after {
-    content: "";      /* ※Clearfix */
+    content: "";
     clear: both;
     display: block;
+}
+.result {
+  background-color: skyblue;
 }
