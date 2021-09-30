@@ -84,7 +84,12 @@ get '/api/v1/images/top' do
   img_url_path = CONFIG['app']['img_url_path']
   $top.to_a.map{ |r| {
                    url: img_url_path + r[:url_hash] + '.' + r[:ext],
-                   tags: DB[:image_tags].where(url_hash: r[:url_hash]).to_a.map{ |u| u[:tag]}
+                   tags: DB[:image_tags].where(url_hash: r[:url_hash]).to_a.map{ |u| u[:tag]},
+                   bytesize: r[:bytesize],
+                   width: r[:width],
+                   height: r[:height],
+                   source_url: r[:source_url],
+                   created_at: r[:created_at],
                  }}.to_json
 end
 

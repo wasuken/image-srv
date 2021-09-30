@@ -19,7 +19,7 @@
       .then((j) => {
         let urls = [];
         let tags = [];
-        inputImageUrls.set(j.map((x) => x.url));
+        inputImageUrls.set(j.map((x) => x));
       });
   }
   topImages();

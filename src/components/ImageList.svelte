@@ -32,11 +32,26 @@
     {/if}
     {#each $inputImageUrls as url}
       <figure class="m-3">
-        <img alt="" src={url} height="200" />
+        <img alt="" src={url.url} height="200" />
         <figcaption>
+          <hr />
+          width: {url.width}, height: {url.height}, size: {url.bytesize}
+          <hr />
+          tags:
+          <div class="row">
+            {#each url.tags as tag}
+              <div class="col-6">
+                <div class="text-wrap">
+                  {tag}
+                </div>
+              </div>
+            {/each}
+          </div>
+          <hr />
           <button class="btn btn-secondary" on:click={() => del(url)}>
             削除
           </button>
+          <a href={url.url} class="btn btn-primary" download> Download </a>
         </figcaption>
       </figure>
     {/each}
