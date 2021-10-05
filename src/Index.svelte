@@ -2,36 +2,55 @@
   import Header from "./components/Header.svelte";
   import TagInput from "./components/TagInput.svelte";
   import ImageList from "./components/ImageList.svelte";
-  import {inputImageUrls} from "./store.js";
+  import {inputTags, searchResult, inputImageUrls} from "./store.js";
 
-  let promise = Promise.resolve([]);
+  let order = "desc";
+  let page = 1;
+  let limit = 10;
+  let max_page = -1;
   async function searchImages() {
-    const resp = await fetch("/api/v1/images");
+    const tags_q = $inputTags.map((x) => `tags[]=${x}`).join("&");
+    const query = `page=${page}&limit=${limit}&${tags_q}`;
+    const resp = await fetch(`/api/v1/images/search?${query}`);
     if (resp.ok) {
-      return resp.json();
+      const j = await resp.json();
+      max_page = j.page_size;
+      const ja = j.data.map((x) => {
+        return {
+          ...x,
+          url: x.source_url,
+        };
+      });
+      inputImageUrls.update((x) => ja);
+      return Promise.resolve({msg: "search ok"});
     } else {
-      throw new Error("Invalid Response.");
+      throw new Error("search request error.");
     }
   }
-  function topImages() {
-    fetch("/api/v1/images/top")
-      .then((x) => x.json())
-      .then((j) => {
-        let urls = [];
-        let tags = [];
-        inputImageUrls.set(j.map((x) => x));
-      });
-  }
-  topImages();
+  searchImages();
 </script>
 
 <Header />
 
 <div class="m-3">
+  <!-- options -->
+  <div class="m-3">
+    <h3>Options</h3>
+    <div class="mb-3">
+      <div class="mb-3">
+        取得件数: <input type="number" bind:value={limit} />
+        並び:
+        <select bind:value={order}>
+          <option value="asc">昇順</option>
+          <option value="desc">降順</option>
+        </select>
+      </div>
+    </div>
+  </div>
   <TagInput />
 
   <div>
-    <button class="btn btn-primary"> 検索 </button>
+    <button class="btn btn-primary" on:click={searchImages}> 検索 </button>
   </div>
 
   <ImageList />

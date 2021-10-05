@@ -93,6 +93,121 @@ get '/api/v1/images/top' do
                  }}.to_json
 end
 
+def parse_search_params(params)
+  tags = params["tags"]
+  # sort key.
+  sort = params["sort"]
+  # sort type(asc or desc)
+  order = params[:order]
+  page = params["page"]
+  limit = params["limit"]
+  tp = params["type"]
+
+  # 現状はこのkeyだけsupport
+  sort = :created_at
+
+  if ['desc', 'asc'].include?(order)
+    order = order.to_sym
+  else
+    order = :asc
+  end
+
+  unless page && page =~ /[0-9]+/ && page.to_i >= 1
+    page = 1
+  end
+  unless limit && limit =~ /[0-9]+/ && limit.to_i >= 10
+    limit = 10
+  end
+  offset = (page.to_i - 1) * limit.to_i
+
+  if ['and', 'or'].include?(tp)
+    tp = tp.to_sym
+  else
+    tp = :and
+  end
+  {
+    tags: tags,
+    sort: sort,
+    order: order,
+    offset: offset,
+    limit: limit,
+    type: tp,
+  }
+end
+
+get '/api/v1/images/search' do
+  pms = JSON.parse(params.to_json)
+  params = parse_search_params(pms)
+
+  img_url_path = CONFIG['app']['img_url_path']
+
+  recs = DB[:images].join_table(:inner, :image_tags, url_hash: :url_hash)
+  cnt = 0
+
+  tag_cnt = (params[:tags]||[]).size
+  if tag_cnt > 0
+    if params[:type] == :and
+      recs = recs
+               .where(tag: params[:tags])
+               .group(Sequel[:images][:url_hash])
+               .having(Sequel.lit("count(images.url_hash) >= #{tag_cnt}"))
+    else
+      recs = recs
+               .where(tag: params[:tags])
+               .group(Sequel[:images][:url_hash])
+               .having(Sequel.lit("count(images.url_hash) >= 1"))
+    end
+  else
+    recs = recs
+             .group(Sequel[:images][:url_hash])
+             .having(Sequel.lit("count(images.url_hash) >= 1"))
+  end
+  cnt = recs
+          .select{count(Sequel[:images][:url_hash]){}.as(count)}
+          .to_a
+          .size
+  page_size = (cnt / params[:limit].to_f).ceil
+  offset = params[:offset]
+  if offset > page_size
+    return {
+      status: 400,
+      msg: 'invalid offset: offset > page size'
+    }
+  end
+
+  sortkey = Sequel.desc(Sequel[:images][params[:sort]])
+  if params[:order] == :asc
+    sortkey = Sequel.asc(Sequel[:images][params[:sort]])
+  end
+
+  recs = recs
+           .order(sortkey)
+           .limit(params[:limit])
+           .to_a
+           .map{ |r|
+    fn = r[:url_hash]
+    fn += '.' + r[:ext] if r[:ext]
+    {
+      url: img_url_path + fn,
+      tags: DB[:image_tags].where(url_hash: r[:url_hash]).to_a.map{ |u| u[:tag]},
+      bytesize: r[:bytesize],
+      width: r[:width],
+      height: r[:height],
+      source_url: r[:source_url],
+      created_at: r[:created_at],
+    }
+  }
+
+  {
+    data: recs,
+    count: cnt,
+    page_size: page_size,
+    limit: params[:limit],
+    offset: offset,
+    status: 200,
+  }.to_json
+end
+
 post '/api/v1/images' do
   content_type :json
   rst = {
