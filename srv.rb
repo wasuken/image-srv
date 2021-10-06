@@ -126,6 +126,7 @@ def parse_search_params(params)
     tp = :and
   end
   {
+    page: page,
     tags: tags,
     sort: sort,
     order: order,
@@ -168,21 +169,23 @@ get '/api/v1/images/search' do
           .size
   page_size = (cnt / params[:limit].to_f).ceil
   offset = params[:offset]
-  if offset > page_size
+  page = params[:page].to_i
+  if page > page_size
     return {
       status: 400,
-      msg: 'invalid offset: offset > page size'
-    }
+      msg: 'invalid offset: offset > page size',
+      page: page,
+      page_size: page_size,
+    }.to_json
   end
-
   sortkey = Sequel.desc(Sequel[:images][params[:sort]])
   if params[:order] == :asc
     sortkey = Sequel.asc(Sequel[:images][params[:sort]])
   end
-
   recs = recs
            .order(sortkey)
            .limit(params[:limit])
+           .offset(params[:offset])
            .to_a
            .map{ |r|
     fn = r[:url_hash]
@@ -202,6 +205,7 @@ get '/api/v1/images/search' do
     data: recs,
     count: cnt,
     page_size: page_size,
+    page: params[:page],
     limit: params[:limit],
     offset: offset,
     status: 200,
@@ -209,6 +213,7 @@ get '/api/v1/images/search' do
 end
 
 post '/api/v1/images' do
+  img_url_path = CONFIG['app']['img_url_path']
   content_type :json
   rst = {
     status: 200,
@@ -225,14 +230,15 @@ post '/api/v1/images' do
   DB.run("BEGIN")
   nowf = DateTime.now.strftime("%Y/%m/%d %H:%M:%S")
   begin
-    params['urls'].select{ |x| x.size > 0}.each do |url|
+    params['urls'].select{ |x| x.size > 0}.each do |data|
+      url = data['url']
       img_tags_ins_list = []
-
-      next if File.exists?(url)
 
       hs = Digest::SHA1.hexdigest(url)
 
       ext = /^[a-z]+/.match(URI.parse(url).path.split('.').last).to_a[0]
+
+      next if File.exists?(img_url_path + hs + '.' + (ext||''))
 
       info = save_img(url, hs, ext)
       info[:url_hash] = hs
@@ -249,7 +255,7 @@ post '/api/v1/images' do
     end
     DB.run("COMMIT")
   rescue => e
-    puts e.message
+    puts e.full_message
     # 失敗
     DB.run("ROLLBACK")
     rst[:status] = 400

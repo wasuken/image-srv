@@ -7,7 +7,7 @@
   let order = "desc";
   let page = 1;
   let limit = 10;
-  let max_page = -1;
+  let max_page = 0;
   async function searchImages() {
     const tags_q = $inputTags.map((x) => `tags[]=${x}`).join("&");
     const query = `page=${page}&limit=${limit}&${tags_q}`;
@@ -15,12 +15,8 @@
     if (resp.ok) {
       const j = await resp.json();
       max_page = j.page_size;
-      const ja = j.data.map((x) => {
-        return {
-          ...x,
-          url: x.source_url,
-        };
-      });
+      page = j.page;
+      const ja = j.data;
       inputImageUrls.update((x) => ja);
       return Promise.resolve({msg: "search ok"});
     } else {
@@ -37,14 +33,21 @@
   <div class="m-3">
     <h3>Options</h3>
     <div class="mb-3">
-      <div class="mb-3">
-        取得件数: <input type="number" bind:value={limit} />
-        並び:
-        <select bind:value={order}>
-          <option value="asc">昇順</option>
-          <option value="desc">降順</option>
-        </select>
-      </div>
+      取得件数: <input type="number" bind:value={limit} />
+      並び:
+      <select bind:value={order}>
+        <option value="asc">昇順</option>
+        <option value="desc">降順</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <select bind:value={page}>
+        {#each Array.from(Array(max_page), (v, k) => k) as i, j}
+          <option value={j + 1}>
+            {j + 1}
+          </option>
+        {/each}
+      </select>
     </div>
   </div>
   <TagInput />
