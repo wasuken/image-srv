@@ -4,20 +4,23 @@ require 'sinatra/reloader'
 require 'json'
 require 'sequel'
 require 'mysql2'
-require 'digest'
 require 'open-uri'
-require 'date'
 require 'net/http'
 require 'nokogiri'
 require 'base64'
-require 'fastimage'
 require 'cgi'
 require 'benchmark'
 
-CONFIG = JSON.parse(File.read('./config.json'))
+require './lib/dbio/imgsrv.rb'
+
+APP_ENV = (ENV['ENV'] || 'development').to_sym
+
+CONFIG = JSON.parse(File.read("./config.#{APP_ENV}.json"))
 
 configure do
   set :bind, '0.0.0.0'
+  set :port, 3000
+  set :environment, :production
   register Sinatra::Reloader
   also_reload "./*.rb"
 end
@@ -30,25 +33,7 @@ DB = Sequel.mysql2(
   encoding: 'utf8'
 )
 
-$top = DB[:images].order(Sequel.desc(:created_at)).limit(20)
-
-def save_img(url, save_name, ext)
-  img_path = CONFIG['app']['img_path']
-  u = URI.parse(url)
-  fp = "#{img_path}#{save_name}.#{ext}"
-  Net::HTTP.start(u.host) do |http|
-    resp = http.get(u.path)
-    open(fp, "wb") do |file|
-      file.write(resp.body)
-    end
-  end
-  width, height = FastImage.size(fp)
-  {
-    bytesize: File.size(fp),
-    width: width,
-    height: height,
-  }
-end
+IMGSRV= ImageServer.new(CONFIG, DB)
 
 get '/' do
   erb :index
@@ -78,19 +63,6 @@ get '/api/v1/img/in/page' do
     imgs << src
   end
   imgs.uniq.to_json
-end
-
-get '/api/v1/images/top' do
-  img_url_path = CONFIG['app']['img_url_path']
-  $top.to_a.map{ |r| {
-                   url: img_url_path + r[:url_hash] + '.' + r[:ext],
-                   tags: DB[:image_tags].where(url_hash: r[:url_hash]).to_a.map{ |u| u[:tag]},
-                   bytesize: r[:bytesize],
-                   width: r[:width],
-                   height: r[:height],
-                   source_url: r[:source_url],
-                   created_at: r[:created_at],
-                 }}.to_json
 end
 
 def parse_search_params(params)
@@ -139,81 +111,19 @@ end
 get '/api/v1/images/search' do
   pms = JSON.parse(params.to_json)
   params = parse_search_params(pms)
-
-  img_url_path = CONFIG['app']['img_url_path']
-
-  recs = DB[:images].join_table(:inner, :image_tags, url_hash: :url_hash)
-  cnt = 0
-
-  tag_cnt = (params[:tags]||[]).size
-  if tag_cnt > 0
-    if params[:type] == :and
-      recs = recs
-               .where(tag: params[:tags])
-               .group(Sequel[:images][:url_hash])
-               .having(Sequel.lit("count(images.url_hash) >= #{tag_cnt}"))
-    else
-      recs = recs
-               .where(tag: params[:tags])
-               .group(Sequel[:images][:url_hash])
-               .having(Sequel.lit("count(images.url_hash) >= 1"))
-    end
-  else
-    recs = recs
-             .group(Sequel[:images][:url_hash])
-             .having(Sequel.lit("count(images.url_hash) >= 1"))
+  rst = {  }
+  begin
+    rst = IMGSRV.search(params)
+    rst[:status] = 200
+  rescue => e
+    puts e.full_message
+    rst[:status] = 900
+    rst[:msg] = e.full_message
   end
-  cnt = recs
-          .select{count(Sequel[:images][:url_hash]){}.as(count)}
-          .to_a
-          .size
-  page_size = (cnt / params[:limit].to_f).ceil
-  offset = params[:offset]
-  page = params[:page].to_i
-  if page > page_size
-    return {
-      status: 400,
-      msg: 'invalid offset: offset > page size',
-      page: page,
-      page_size: page_size,
-    }.to_json
-  end
-  sortkey = Sequel.desc(Sequel[:images][params[:sort]])
-  if params[:order] == :asc
-    sortkey = Sequel.asc(Sequel[:images][params[:sort]])
-  end
-  recs = recs
-           .order(sortkey)
-           .limit(params[:limit])
-           .offset(params[:offset])
-           .to_a
-           .map{ |r|
-    fn = r[:url_hash]
-    fn += '.' + r[:ext] if r[:ext]
-    {
-      url: img_url_path + fn,
-      tags: DB[:image_tags].where(url_hash: r[:url_hash]).to_a.map{ |u| u[:tag]},
-      bytesize: r[:bytesize],
-      width: r[:width],
-      height: r[:height],
-      source_url: r[:source_url],
-      created_at: r[:created_at],
-    }
-  }
-
-  {
-    data: recs,
-    count: cnt,
-    page_size: page_size,
-    page: params[:page],
-    limit: params[:limit],
-    offset: offset,
-    status: 200,
-  }.to_json
+  rst.to_json
 end
 
 post '/api/v1/images' do
-  img_url_path = CONFIG['app']['img_url_path']
   content_type :json
   rst = {
     status: 200,
@@ -228,39 +138,15 @@ post '/api/v1/images' do
   end
   Date.today
   DB.run("BEGIN")
-  nowf = DateTime.now.strftime("%Y/%m/%d %H:%M:%S")
   begin
-    params['urls'].select{ |x| x.size > 0}.each do |data|
-      url = data['url']
-      img_tags_ins_list = []
-
-      hs = Digest::SHA1.hexdigest(url)
-
-      ext = /^[a-z]+/.match(URI.parse(url).path.split('.').last).to_a[0]
-
-      next if File.exists?(img_url_path + hs + '.' + (ext||''))
-
-      info = save_img(url, hs, ext)
-      info[:url_hash] = hs
-      info[:ext] = ext
-      info[:created_at] = nowf
-      info[:source_url] = url
-
-      DB[:images].insert(info)
-      puts "inserted image: #{url}"
-      params['tags'].each do |tag|
-        img_tags_ins_list << { url_hash: hs, tag: tag, created_at: nowf }
-      end
-      DB[:image_tags].multi_insert(img_tags_ins_list)
-    end
-    DB.run("COMMIT")
+    IMGSRV.post(params)
   rescue => e
     puts e.full_message
     # 失敗
     DB.run("ROLLBACK")
     rst[:status] = 400
     rst[:msg] = "database insert error."
-    return rst.to_json
   end
+  DB.run("COMMIT")
   rst.to_json
 end

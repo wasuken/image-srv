@@ -2,7 +2,8 @@
 require 'sequel'
 require 'json'
 
-CONFIG = JSON.parse(File.read('./config.json'))
+APP_ENV = (ENV['ENV'] || 'development').to_sym
+CONFIG = JSON.parse(File.read("./config.#{APP_ENV}.json"))
 
 DB = Sequel.mysql2(
   host: CONFIG['db']['host'],
