@@ -1,24 +1,24 @@
 # coding: utf-8
-require 'sinatra'
-require 'sinatra/reloader'
-require 'json'
-require 'sequel'
-require 'mysql2'
-require 'open-uri'
-require 'net/http'
-require 'nokogiri'
-require 'base64'
-require 'cgi'
-require 'benchmark'
+require "sinatra"
+require "sinatra/reloader"
+require "json"
+require "sequel"
+require "mysql2"
+require "open-uri"
+require "net/http"
+require "nokogiri"
+require "base64"
+require "cgi"
+require "benchmark"
 
-require './lib/dbio/imgsrv.rb'
+require "./lib/dbio/imgsrv.rb"
 
-APP_ENV = (ENV['ENV'] || 'development').to_sym
+APP_ENV = (ENV["ENV"] || "development").to_sym
 
 CONFIG = JSON.parse(File.read("./config.#{APP_ENV}.json"))
 
 configure do
-  set :bind, '0.0.0.0'
+  set :bind, "0.0.0.0"
   set :port, 3000
   set :environment, :production
   register Sinatra::Reloader
@@ -26,34 +26,34 @@ configure do
 end
 
 DB = Sequel.mysql2(
-  host: CONFIG['db']['host'],
-  user: CONFIG['db']['user'],
-  password: CONFIG['db']['pass'],
-  database: CONFIG['db']['name'],
-  encoding: 'utf8'
+  host: CONFIG["db"]["host"],
+  user: CONFIG["db"]["user"],
+  password: CONFIG["db"]["pass"],
+  database: CONFIG["db"]["name"],
+  encoding: "utf8",
 )
 
-IMGSRV= ImageServer.new(CONFIG, DB)
+IMGSRV = ImageServer.new(CONFIG, DB)
 
-get '/' do
+get "/" do
   erb :index
 end
 
-get '/post' do
+get "/post" do
   erb :post
 end
 
-get '/api/v1/img/in/page' do
-  url = params['url']
-  uri = URI.encode_www_form_component(url, enc=nil)
-  uri = uri.gsub(/%3A/, ':').gsub(/%2F/, '/')
+get "/api/v1/img/in/page" do
+  url = params["url"]
+  uri = URI.encode_www_form_component(url, enc = nil)
+  uri = uri.gsub(/%3A/, ":").gsub(/%2F/, "/")
   doc = Nokogiri::HTML(URI.open(uri))
   imgs = []
 
   u = URI.parse(uri)
   hostsc = "#{u.scheme}://#{u.host}"
-  doc.css('img').each do |img|
-    src = img.attr('src')
+  doc.css("img").each do |img|
+    src = img.attr("src")
     if src =~ /^\//
       src = "#{hostsc}#{src}"
     elsif !((src =~ /^.*?:\/\//) || (src =~ /^\//))
@@ -78,7 +78,7 @@ def parse_search_params(params)
   # 現状はこのkeyだけsupport
   sort = :created_at
 
-  if ['desc', 'asc'].include?(order)
+  if ["desc", "asc"].include?(order)
     order = order.to_sym
   else
     order = :asc
@@ -92,7 +92,7 @@ def parse_search_params(params)
   end
   offset = (page.to_i - 1) * limit.to_i
 
-  if ['and', 'or'].include?(tp)
+  if ["and", "or"].include?(tp)
     tp = tp.to_sym
   else
     tp = :and
@@ -108,10 +108,10 @@ def parse_search_params(params)
   }
 end
 
-get '/api/v1/images/search' do
+get "/api/v1/images/search" do
   pms = JSON.parse(params.to_json)
   params = parse_search_params(pms)
-  rst = {  }
+  rst = {}
   begin
     rst = IMGSRV.search(params)
     rst[:status] = 200
@@ -123,7 +123,7 @@ get '/api/v1/images/search' do
   rst.to_json
 end
 
-post '/api/v1/images' do
+post "/api/v1/images" do
   content_type :json
   rst = {
     status: 200,
@@ -131,7 +131,7 @@ post '/api/v1/images' do
   }
   params = JSON.parse request.body.read
 
-  unless params['urls'].size > 0
+  unless params["urls"].size > 0
     rst[:status] = 400
     rst[:msg] = "not data"
     return rst.to_json
